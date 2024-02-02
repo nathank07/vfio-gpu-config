@@ -35,8 +35,8 @@ done
 read -p "Manually select? (y/n): " select
 
 if [ "$select" = "y" ]; then
-    printf "\nCurrent IDs: $current_pci_ids"
-    printf "\nSelect IDs to use:"
+    printf "\nCurrent IDs: $current_pci_ids\n"
+    printf "\nSelect IDs to use:\n"
 
     # Display options
     for ((i=0; i<${#busIDs[@]}; i++)); do
@@ -44,7 +44,7 @@ if [ "$select" = "y" ]; then
     done
 
     # Select options
-    printf "\nSelect PCI IDs to passthrough (separated by commas):"
+    printf "\nSelect PCI IDs to passthrough (separated by commas): "
     read -r option_indices
 
     # Split the input into an array of indices
@@ -110,24 +110,39 @@ else
     done
 fi
 
+printf "\n"
+read -p "Press Enter to continue..."
+
 # Clear kernelstub, modprobe, and xorg.conf
 
 sudo ./clear.sh
 
-# TODO: Add kernelstub parameters
+grouped_pci=$(IFS=, ; echo "${selected_pci_ids[*]}")
 
-#echo "Running kernelstub -d vfio.pci-ids=${current_pci_ids}"
-#sudo kernelstub -d vfio.pci-ids=${current_pci_ids}
-#echo "Running kernelstub -a vfio.pci-ids=$(IFS=, ; echo "${selected_pci_ids[*]}")"
-#sudo kernelstub -a vfio.pci-ids=$(IFS=, ; echo "${selected_pci_ids[*]}")
+# Add kernelstub parameters
 
-# TODO: Add modprobe.d/vfio.conf
+printf "Running kernelstub -a vfio.pci-ids=$grouped_pci\n\n"
+sudo kernelstub -a vfio.pci-ids=$grouped_pci
 
-#echo "$(cat /etc/modprobe.d/vfio.conf | grep "options vfio-pci ids=${pci_ids}")"
+# Add modprobe.d/vfio.conf
 
+printf "$(cat /etc/modprobe.d/vfio.conf | grep "options vfio-pci ids=${current_pci_ids}")"
+sudo sed -i "s/options vfio-pci ids=.*/options vfio-pci ids=${grouped_pci}/" /etc/modprobe.d/vfio.conf
+printf " in /etc/modprobe.d/vfio.conf file changed to: \n\n"
+echo "$(cat /etc/modprobe.d/vfio.conf | sed 's/^/\t/')"
+printf "\n"
 
-# TODO: Add /etc/X11/xorg.conf
+# Add /etc/X11/xorg.conf
 
+declare -i display=0
 
+if [[ "${selected_busIDs[0]:1:1}" == "1" ]]; then
+    display=2
+else
+    display=1
+fi
 
-
+printf "Setting /etc/X11/xorg.conf display monitor to PCI:${display}:0:0\n\n"
+sudo sed -i "s/BusID.*/BusID          \"PCI:${display}:0:0\"/" /etc/X11/xorg.conf
+echo "$(cat /etc/X11/xorg.conf | grep -i "BusID")"
+printf "\nPlease restart your computer and edit libvirt XML to apply changes.\n\n"
