@@ -1,5 +1,10 @@
 #!/bin/bash
 
+if [ "$EUID" -ne 0 ]; then
+    echo "Please run with sudo"
+    exit
+fi
+
 declare -a busIDs
 declare -a pci_id_list
 declare -a device_names
@@ -27,12 +32,11 @@ for line in "${lspci_output[@]}"; do
     device_names+=("$device_name")
 done
 
-echo "Manually select? (y/n)"
-read -r select
+read -p "Manually select? (y/n): " select
 
 if [ "$select" = "y" ]; then
-    echo "Current IDs: $current_pci_ids"
-    echo "Select IDs to use:"
+    printf "\nCurrent IDs: $current_pci_ids"
+    printf "\nSelect IDs to use:"
 
     # Display options
     for ((i=0; i<${#busIDs[@]}; i++)); do
@@ -40,7 +44,7 @@ if [ "$select" = "y" ]; then
     done
 
     # Select options
-    echo "Select PCI IDs to passthrough (separated by commas):"
+    printf "\nSelect PCI IDs to passthrough (separated by commas):"
     read -r option_indices
 
     # Split the input into an array of indices
@@ -51,14 +55,13 @@ if [ "$select" = "y" ]; then
         selected_pci_ids+=("${pci_id_list[$index]}")
         selected_device_names+=("${device_names[$index]}")
     done
-
-    echo "Selected devices:"
+    printf "\nSelected devices:"
     for ((i=0; i<${#selected_busIDs[@]}; i++)); do
-        echo "${selected_device_names[$i]}"
+        printf "\n${selected_device_names[$i]}"
     done
 else 
     # Use the VGA and Audio driver IDs of the other card
-    echo "Current devices: "
+    printf "\nCurrent devices: \n"
 
     # Display devices
     for line in "${lspci_output[@]}"; do
@@ -68,7 +71,7 @@ else
         device_name=$(echo "$line" | sed -n -e 's/^.*:\(.*\)\[.*$/\1/p')
         for current_pci_id in "${pci_id_array[@]}"; do
             if [[ "$current_pci_id" == "$pci_id" ]]; then
-                echo "$busID$device_name"
+                printf "$busID$device_name\n"
             fi
         done
     done
@@ -101,23 +104,29 @@ else
     selected_device_names+=("$(echo "$audio" | sed -n -e 's/^.*:\(.*\)\[.*$/\1/p')")
 
     # Display new devices to add
-    echo "Selected devices:"
+    printf "\nSelected devices:\n"
     for ((i=0; i<${#selected_busIDs[@]}; i++)); do
-        echo "${selected_busIDs[$i]} ${selected_device_names[$i]}"
+        printf "${selected_busIDs[$i]} ${selected_device_names[$i]}\n"
     done
 fi
 
-# TODO: Change kernelstub parameters
+# Clear kernelstub, modprobe, and xorg.conf
 
-#echo "Running kernelstub -d vfio.pci-ids=${pci_ids}..."
-# kernelstub -d vfio.pci-ids=${pci_ids}
+sudo ./clear.sh
 
-# TODO: Change modprobe.d/vfio.conf
+# TODO: Add kernelstub parameters
+
+#echo "Running kernelstub -d vfio.pci-ids=${current_pci_ids}"
+#sudo kernelstub -d vfio.pci-ids=${current_pci_ids}
+#echo "Running kernelstub -a vfio.pci-ids=$(IFS=, ; echo "${selected_pci_ids[*]}")"
+#sudo kernelstub -a vfio.pci-ids=$(IFS=, ; echo "${selected_pci_ids[*]}")
+
+# TODO: Add modprobe.d/vfio.conf
 
 #echo "$(cat /etc/modprobe.d/vfio.conf | grep "options vfio-pci ids=${pci_ids}")"
 
 
-# TODO: Change /etc/X11/xorg.conf
+# TODO: Add /etc/X11/xorg.conf
 
 
 
