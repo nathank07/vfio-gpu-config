@@ -1,3 +1,5 @@
+#!/bin/bash
+
 # Get the current bound vfio ids
 output=$(sudo kernelstub -p 2>&1 | grep "vfio.pci-ids=")
 current_pci_ids=$(echo ${output#*vfio.pci-ids=} | cut -d' ' -f1)
